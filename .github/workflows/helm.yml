@@ -1,0 +1,51 @@
+name: Release Charts
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Add repositories
+        run: |
+          for dir in $(ls -d charts/*/); do
+            helm dependency list $dir 2> /dev/null | tail +2 | head -n -1 | awk '{ print "helm repo add " $1 " " $3 }' | while read cmd; do $cmd; done
+          done
+
+      - uses: goodsmileduck/helm-push-action@v3
+        env:
+          SOURCE_DIR: 'charts'
+          CHART_FOLDER: 'slackbot-boilerplate'
+          CHARTMUSEUM_URL: 'https://chartmuseum.jugou28.com/'
+          CHARTMUSEUM_USER: '${{ secrets.CHARTMUSEUM_USER }}'
+          CHARTMUSEUM_PASSWORD: '${{ secrets.CHARTMUSEUM_PASSWORD }}'
+
+#      - name: Add repositories & package
+#        run: |
+#          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+#          chmod 700 get_helm.sh
+#          ./get_helm.sh
+#          helm plugin install https://github.com/chartmuseum/helm-push.git
+#          cd charts/slackbot-boilerplate
+#          helm repo add chartmuseum https://chartmuseum.jugou28.com/ --username ${{ secrets.CHARTMUSEUM_USER }} --password ${{ secrets.CHARTMUSEUM_PASSWORD }}
+#          helm package .
+#          helm cm-push slackbot-boilerplate-* chartmuseum
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.5.0
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
